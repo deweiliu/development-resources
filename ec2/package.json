@@ -1,0 +1,20 @@
+{
+  "name": "ec2",
+  "version": "0.1.0",
+  "bin": {
+    "ec2": "bin/ec2.js"
+  },
+  "scripts": {
+    "deploy": "cdk deploy --require-approval=never",
+    "synth": "cdk synth",
+    "destroy": "cdk destroy --force"
+  },
+  "devDependencies": {
+    "aws-cdk": "~2.10.0"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "~2.10.0",
+    "constructs": "^10.0.0",
+    "source-map-support": "^0.5.16"
+  }
+}
