@@ -76,12 +76,13 @@ export class Ec2Stack extends Stack {
       const cluster = new rds.DatabaseCluster(this, 'Database', {
         engine: rds.DatabaseClusterEngine.auroraMysql({ version: rds.AuroraMysqlEngineVersion.VER_2_03_2 }),
         credentials,
+
         instanceProps: {
           instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
           vpc,
           vpcSubnets: { subnets },
           securityGroups: [securityGroup],
-
+          publiclyAccessible: true,
           deleteAutomatedBackups: true,
         },
         backup: { retention: Duration.days(1) },
