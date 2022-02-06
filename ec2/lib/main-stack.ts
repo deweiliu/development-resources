@@ -2,7 +2,10 @@ import {
   Stack,
   StackProps,
   aws_ec2 as ec2,
-  CfnOutput
+  CfnOutput,
+  aws_rds as rds,
+  RemovalPolicy,
+  Duration,
 } from 'aws-cdk-lib';
 import amis from './AMIs.json'
 import { Construct } from 'constructs';
@@ -45,28 +48,48 @@ export class Ec2Stack extends Stack {
     const securityGroup = new ec2.SecurityGroup(this, 'DevSecurityGroup', { vpc: get.vpc })
 
     securityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(22));
+    securityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(3306));
     get.otherSecurityGroups.forEach(otherSg => {
       otherSg.connections.allowFrom(securityGroup, ec2.Port.allTcp(), 'Allow from Dev EC2');
     });
 
-
-
-    [...Array(get.instanceCount).keys()].forEach(instanceId => {
-      const instance = new ec2.Instance(this, "DevInstance" + instanceId, {
-        vpc,
-        instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3A, ec2.InstanceSize.MICRO),
-        machineImage: ec2.MachineImage.fromSsmParameter(amis.ubuntu.amd64),
-        keyName: 'ecs-instance',
-        blockDevices: [{
-          deviceName: '/dev/sda1',
-          volume: ec2.BlockDeviceVolume.ebs(8, { deleteOnTermination: true, encrypted: true, volumeType: ec2.EbsDeviceVolumeType.GP2 }),
-        }],
-        securityGroup,
+    if (process.env['EC2'] === 'true') {
+      [...Array(get.instanceCount).keys()].forEach(instanceId => {
+        const instance = new ec2.Instance(this, "DevInstance" + instanceId, {
+          vpc,
+          instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3A, ec2.InstanceSize.MICRO),
+          machineImage: ec2.MachineImage.fromSsmParameter(amis.ubuntu.amd64),
+          keyName: 'ecs-instance',
+          blockDevices: [{
+            deviceName: '/dev/sda1',
+            volume: ec2.BlockDeviceVolume.ebs(8, { deleteOnTermination: true, encrypted: true, volumeType: ec2.EbsDeviceVolumeType.GP2 }),
+          }],
+          securityGroup,
+        });
+        const ssh = 'ssh -i ecs-instance.pem ubuntu@' + instance.instancePublicIp;
+        new CfnOutput(this, 'SSH' + instanceId, { value: ssh });
       });
-      const ssh = 'ssh -i ecs-instance.pem ubuntu@' + instance.instancePublicIp;
-      new CfnOutput(this, 'SSH' + instanceId, { value: ssh });
-    });
+    }
 
+    if (process.env['DB'] === 'true') {
+      const credentials = rds.Credentials.fromUsername('root');
+      const cluster = new rds.DatabaseCluster(this, 'Database', {
+        engine: rds.DatabaseClusterEngine.auroraMysql({ version: rds.AuroraMysqlEngineVersion.VER_2_03_2 }),
+        credentials,
+        instanceProps: {
+          instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
+          vpc,
+          vpcSubnets: { subnets },
+          securityGroups: [securityGroup],
+
+          deleteAutomatedBackups: true,
+        },
+        backup: { retention: Duration.days(1) },
+        instances: 1,
+        removalPolicy: RemovalPolicy.DESTROY,
+      });
+      new CfnOutput(this, 'RDSEndpoint', { value: cluster.clusterEndpoint.hostname });
+    }
 
   }
 }
