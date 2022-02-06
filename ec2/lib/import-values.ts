@@ -12,6 +12,7 @@ export class ImportValues extends Construct implements CdkStackProps {
     public igwId: string;
     public vpc: ec2.IVpc;
     public otherSecurityGroups: ec2.ISecurityGroup[] = [];
+    public clusterSecurityGroup: ec2.ISecurityGroup;
 
     public maxAzs: number;
     public appId: number;
@@ -33,8 +34,8 @@ export class ImportValues extends Construct implements CdkStackProps {
 
         this.otherSecurityGroups.push(
             ec2.SecurityGroup.fromSecurityGroupId(this, 'MysqlSecurityGroup', Fn.importValue('Core-MySqlSecurityGroup')));
-
-        this.otherSecurityGroups.push(
-            ec2.SecurityGroup.fromSecurityGroupId(this, 'EcsSecurityGroup', Fn.importValue('Core-ClusterSecurityGroup')));
+        this.clusterSecurityGroup =
+            ec2.SecurityGroup.fromSecurityGroupId(this, 'EcsSecurityGroup', Fn.importValue('Core-ClusterSecurityGroup'));
+        this.otherSecurityGroups.push(this.clusterSecurityGroup);
     }
 }

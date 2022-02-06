@@ -49,6 +49,8 @@ export class Ec2Stack extends Stack {
 
     securityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(22));
     securityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(3306));
+
+    get.clusterSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(22));
     get.otherSecurityGroups.forEach(otherSg => {
       otherSg.connections.allowFrom(securityGroup, ec2.Port.allTcp(), 'Allow from Dev EC2');
     });
