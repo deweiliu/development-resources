@@ -5,9 +5,9 @@
     "ec2": "bin/ec2.js"
   },
   "scripts": {
-    "deploy": "EC2=true DB=false cdk deploy --require-approval=never",
-    "deploy-db": "EC2=true DB=true cdk deploy --require-approval=never",
-    "synth": "EC2=true DB=true cdk synth",
+    "deploy": "EC2=true MYSQL=false POSTGRESQL=false cdk deploy --require-approval=never",
+    "deploy-db": "EC2=true MYSQL=true POSTGRESQL=true cdk deploy --require-approval=never",
+    "synth": "EC2=true MYSQL=true POSTGRESQL=true cdk synth",
     "destroy": "cdk destroy --force"
   },
   "devDependencies": {

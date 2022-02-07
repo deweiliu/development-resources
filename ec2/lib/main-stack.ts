@@ -49,6 +49,7 @@ export class Ec2Stack extends Stack {
 
     securityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(22));
     securityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(3306));
+    securityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(5432));
 
     get.clusterSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(22));
     get.otherSecurityGroups.forEach(otherSg => {
@@ -73,9 +74,9 @@ export class Ec2Stack extends Stack {
       });
     }
 
-    if (process.env['DB'] === 'true') {
+    if (process.env['MYSQL'] === 'true') {
       const credentials = rds.Credentials.fromUsername('root');
-      const cluster = new rds.DatabaseCluster(this, 'Database', {
+      const mysql = new rds.DatabaseCluster(this, 'Mysql', {
         engine: rds.DatabaseClusterEngine.auroraMysql({ version: rds.AuroraMysqlEngineVersion.VER_2_03_2 }),
         credentials,
 
@@ -91,7 +92,27 @@ export class Ec2Stack extends Stack {
         instances: 1,
         removalPolicy: RemovalPolicy.DESTROY,
       });
-      new CfnOutput(this, 'RDSEndpoint', { value: cluster.clusterEndpoint.hostname });
+      new CfnOutput(this, 'MysqlEndpoint', { value: mysql.clusterEndpoint.hostname });
+    }
+    if (process.env['POSTGRESQL'] === 'true') {
+      const credentials = rds.Credentials.fromUsername('root');
+      const postgresql = new rds.DatabaseCluster(this, 'Postgresql', {
+        engine: rds.DatabaseClusterEngine.auroraPostgres({ version: rds.AuroraPostgresEngineVersion.VER_13_4 }),
+        credentials,
+        defaultDatabaseName: 'peertube',
+        instanceProps: {
+          instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MEDIUM),
+          vpc,
+          vpcSubnets: { subnets },
+          securityGroups: [securityGroup],
+          publiclyAccessible: true,
+          deleteAutomatedBackups: true,
+        },
+        backup: { retention: Duration.days(1) },
+        instances: 1,
+        removalPolicy: RemovalPolicy.DESTROY,
+      });
+      new CfnOutput(this, 'PostgresqlEndpoint', { value: postgresql.clusterEndpoint.hostname });
     }
 
   }
