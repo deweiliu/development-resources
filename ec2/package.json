@@ -6,16 +6,17 @@
   },
   "scripts": {
     "deploy": "EC2=true MYSQL=false POSTGRESQL=false cdk deploy --require-approval=never",
-    "deploy-db": "EC2=true MYSQL=true POSTGRESQL=true cdk deploy --require-approval=never",
-    "synth": "EC2=true MYSQL=true POSTGRESQL=true cdk synth",
+    "deploy-db": "EC2=true MYSQL=true POSTGRESQL=false cdk deploy --require-approval=never",
+    "synth": "EC2=true MYSQL=true POSTGRESQL=false cdk synth",
     "destroy": "cdk destroy --force"
   },
-  "devDependencies": {
-    "aws-cdk": "~2.10.0"
-  },
   "dependencies": {
-    "aws-cdk-lib": "~2.10.0",
-    "constructs": "^10.0.0",
-    "source-map-support": "^0.5.16"
+    "aws-cdk": "^2.49.0",
+    "aws-cdk-lib": "^2.49.0",
+    "constructs": "^10.1.145",
+    "source-map-support": "^0.5.21"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.8"
   }
 }

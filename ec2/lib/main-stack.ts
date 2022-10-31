@@ -5,7 +5,9 @@ import {
   CfnOutput,
   aws_rds as rds,
   RemovalPolicy,
-  Duration,
+    Fn,
+    Duration,
+  aws_iam as iam,
 } from 'aws-cdk-lib';
 import amis from './AMIs.json'
 import { Construct } from 'constructs';
@@ -21,6 +23,11 @@ export class Ec2Stack extends Stack {
     super(scope, id, props);
 
     const get = new ImportValues(this, props);
+
+    const ecsKeyPair=new ec2.CfnKeyPair(this,'ECSKeyPair',{
+      keyName:'test-instance',
+      keyType:'rsa',
+  });
 
     const subnets: ec2.ISubnet[] = [];
 
@@ -45,31 +52,38 @@ export class Ec2Stack extends Stack {
       publicSubnetIds: subnets.map(subnet => subnet.subnetId),
       publicSubnetRouteTableIds: subnets.map(subnet => subnet.routeTable.routeTableId),
     });
-    const securityGroup = new ec2.SecurityGroup(this, 'DevSecurityGroup', { vpc: get.vpc })
+    const clusterSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(this, 'ClusterSecurityGroup', Fn.importValue('Core-ClusterSecurityGroup'));
 
-    securityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(22));
-    securityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(3306));
-    securityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(5432));
+    clusterSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(22));
+    clusterSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(3306));
+    clusterSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(5432));
 
     get.clusterSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(22));
     get.otherSecurityGroups.forEach(otherSg => {
-      otherSg.connections.allowFrom(securityGroup, ec2.Port.allTcp(), 'Allow from Dev EC2');
+      otherSg.connections.allowFrom(clusterSecurityGroup, ec2.Port.allTcp(), 'Allow from Dev EC2');
     });
 
+    const image='ec2-user';
     if (process.env['EC2'] === 'true') {
       [...Array(get.instanceCount).keys()].forEach(instanceId => {
-        const instance = new ec2.Instance(this, "DevInstance" + instanceId, {
+        const instance = new ec2.Instance(this, "DevInstance0" + instanceId, {
           vpc,
           instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3A, ec2.InstanceSize.MICRO),
-          machineImage: ec2.MachineImage.fromSsmParameter(amis.ubuntu.amd64),
-          keyName: 'ecs-instance',
+          machineImage: ec2.MachineImage.fromSsmParameter(amis[image].amd64),
+          keyName: ecsKeyPair.keyName,
+          role:new iam.Role(this, id + 'DeployerSlaveRole', {
+            assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+            managedPolicies: [
+              iam.ManagedPolicy.fromManagedPolicyArn(this, id + 'AdministratorAccess', 'arn:aws:iam::aws:policy/AdministratorAccess'),
+            ]
+          }),
           blockDevices: [{
             deviceName: '/dev/sda1',
             volume: ec2.BlockDeviceVolume.ebs(8, { deleteOnTermination: true, encrypted: true, volumeType: ec2.EbsDeviceVolumeType.GP2 }),
           }],
-          securityGroup,
+          securityGroup: clusterSecurityGroup,
         });
-        const ssh = 'ssh -i ecs-instance.pem ubuntu@' + instance.instancePublicIp;
+        const ssh = `ssh -i ${ecsKeyPair.keyName}.pem ec2-user@` + instance.instancePublicIp;
         new CfnOutput(this, 'SSH' + instanceId, { value: ssh });
       });
     }
@@ -84,10 +98,11 @@ export class Ec2Stack extends Stack {
           instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
           vpc,
           vpcSubnets: { subnets },
-          securityGroups: [securityGroup],
+          securityGroups: [clusterSecurityGroup],
           publiclyAccessible: true,
           deleteAutomatedBackups: true,
         },
+        defaultDatabaseName: 'test_db',
         backup: { retention: Duration.days(1) },
         instances: 1,
         removalPolicy: RemovalPolicy.DESTROY,
@@ -104,7 +119,7 @@ export class Ec2Stack extends Stack {
           instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MEDIUM),
           vpc,
           vpcSubnets: { subnets },
-          securityGroups: [securityGroup],
+          securityGroups: [clusterSecurityGroup],
           publiclyAccessible: true,
           deleteAutomatedBackups: true,
         },
